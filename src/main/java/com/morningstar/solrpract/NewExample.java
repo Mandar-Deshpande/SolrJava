@@ -19,31 +19,23 @@ import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashSet;
+import java.util.HashMap;
 import java.util.Iterator;
-import java.util.Scanner;
-import java.util.Set;
+import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Scanner;
 
 /**
  * Hello world!
  *
  */
 
-public class App {
-	Scanner sc;
-	String ID;
-	String[] uq;
-	private App() {
-		sc = new Scanner(System.in);
-		ID = "";
-	}
+public class NewExample {
+	Scanner sc = new Scanner(System.in);
 
 	public static void main(String[] args) {
-		App a = new App();
-		System.out.println(
-				"Choose option 1.Insert to Solr \n 2.Add New Record \n 3.Update In Solr \n 5.Delete all Records from Solr");
+		NewExample a = new NewExample();
+		System.out.println("Choose option 1. Insert To JSON file \n 2.Insert to Solr \n 3.Delete from Solr");
 		Scanner sc = new Scanner(System.in);
 		int i = sc.nextInt();
 		switch (i) {
@@ -51,36 +43,28 @@ public class App {
 			a.instertAllSolrData();
 			break;
 		case 2:
-			a.AddNewRecord();
-			break;
-		case 3:
 			a.deleteAllSolrData();
 			break;
-		case 4:
-			a.print_field_names();
+		case 3:
+			a.createJson();
 			break;
 		default:
 			break;
 		}
-		sc.close();
 	}
 
 	private void deleteAllSolrData() {
 		SolrClient server = new HttpSolrClient("http://localhost:8983/solr/Booktemp");
 		try {
-			server.deleteByQuery("*:*");
+			server.deleteByQuery("author:Jostein Gaarder");
 			server.commit();
+			// server.close();
 		} catch (SolrServerException e) {
 			throw new RuntimeException("Failed to delete data in Solr. " + e.getMessage(), e);
 		} catch (IOException e) {
 			throw new RuntimeException("Failed to delete data in Solr. " + e.getMessage(), e);
-		} finally {
-			try {
-				server.close();
-			} catch (IOException e) {
-				e.printStackTrace();
-			}
 		}
+
 	}
 
 	private void instertAllSolrData() {
@@ -136,8 +120,11 @@ public class App {
 				doc.addField("pages_i", pages_i);
 				doc.addField("cat", as);
 				server.add(doc);
-				server.commit();
+				i++;
+				if (i % 100 == 0)
+					server.commit();
 			}
+			server.commit();
 			server.close();
 			/*
 			 * // loop array JSONArray msg = (JSONArray) jsonObject.get("cat");
@@ -156,73 +143,62 @@ public class App {
 		}
 	}
 
-	private String fieldNames() {
-		String Arr = "";
-		SolrClient solrServer = new HttpSolrClient("http://localhost:8983/solr/Bookex");
+	public void createJson() {
+		SolrClient solrServer = new HttpSolrClient("http://localhost:8983/solr/Booktemp");
 		SolrQuery qry = new SolrQuery("*:*");
-		String solrID = "";
+		String solrID="";
 		qry.setIncludeScore(true);
 		qry.setShowDebugInfo(true);
 		qry.setRows(100);
 		QueryRequest qryReq = new QueryRequest(qry);
 		QueryResponse resp;
+		System.out.println("Enter Field Name");
+		String field=sc.nextLine();
 		try {
 			resp = qryReq.process(solrServer);
 
 			SolrDocumentList results = resp.getResults();
-			for (int i = 0; i < results.size(); i++) {
+			System.out.println(results.getNumFound() + " total hits");
+			int count = results.size();
+			System.out.println(count + " received hits");
+			System.out.println("Enter value to change of field "+field +" ");
+			String temp="["+sc.nextLine()+"]";
+			for (int i = 0; i < count; i++) {
 				SolrDocument hitDoc = results.get(i);
-				solrID = hitDoc.getFieldValue("id").toString();
+				String temp2= hitDoc.getFieldValue(field).toString();
+				//System.out.println(temp2);
+				if(temp2.equalsIgnoreCase(temp)) {
+					//System.out.println(hitDoc.getFieldValue("id"));
+					solrID=hitDoc.getFieldValue("id").toString();
 				for (Iterator<Entry<String, Object>> flditer = hitDoc.iterator(); flditer.hasNext();) {
 					Entry<String, Object> entry = flditer.next();
-					Arr += entry.getKey() + " || ";
-					System.out.println(Arr);
-					if (entry.getKey() == "id") {
-						ID += entry.getValue() + " || ";
-					}
+					System.out.println(entry.getKey() + ": " + entry.getValue());
+					
 				}
+				}				
 			}
+			update(solrID,field);
 		} catch (SolrServerException | IOException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
-		return Arr;
-	}
-
-	public void print_field_names() {
-		String s = fieldNames();
-		System.out.println("This not " + s);
-		String[] arr = s.split(" || ");
-		Set<String> temp = new HashSet<String>(Arrays.asList(arr));
-		uq = temp.toArray(new String[temp.size()]);
-		for (int i = 0; i < uq.length; i++) {
-			System.out.println(uq[i]);
-		}
-	}
-
-	public void AddNewRecord() {
-		JSONObject json = new JSONObject();
 		
-		json.put("title", "Harry Potter and Half Blood Prince");
-		json.put("author", "J. K. Rolling");
-		json.put("price", 20);
-		JSONArray jsonArray = new JSONArray();
-		jsonArray.add("Harry");
-		jsonArray.add("Ron");
-		jsonArray.add("Hermoinee");
-		json.put("characters", jsonArray);
-		try {
-			System.out.println("Writting JSON into file ...");
-			System.out.println(json);
-			FileWriter jsonFileWriter = new FileWriter("C:\\myjson\\books.json");
-			jsonFileWriter.append(json.toJSONString());
-			jsonFileWriter.flush();
-			jsonFileWriter.close();
-			System.out.println("Done");
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
-
 	}
+	public void update( String solrID,String Field) throws SolrServerException, IOException
+	{
+		SolrClient cln = new HttpSolrClient("http://localhost:8983/solr/Bookex");
+		System.out.println("Enter New Value for field "+Field+" : ");
+		String ob=sc.nextLine();
+		SolrInputDocument document = new SolrInputDocument();
+		document.addField("id", solrID);
+		Map<String, String> operation = new HashMap<String,String>();
+		operation.put("set", ob);
+		document.addField(Field, operation);
+		cln.add(document);
+		cln.commit();
+		cln.close();
+		
+		
+	} 
 
 }
